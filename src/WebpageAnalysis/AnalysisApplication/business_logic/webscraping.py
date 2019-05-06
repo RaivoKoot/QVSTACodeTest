@@ -1,4 +1,5 @@
 from urllib.request import urlopen as uReq
+from urllib.error import HTTPError
 from bs4 import BeautifulSoup as soup
 from bs4 import Doctype
 import re
@@ -12,8 +13,10 @@ def analyze_page(url):
         # this line can cause 404 errors and possibly more if the url is
         # bad or something else with the page is wrong
         uClient = uReq(url)
+    except HTTPError as error:
+        raise CustomException(detail={"Problem": "There was a problem trying to reach the provided url. Make sure it is valid and reachable. Make sure it contains an http declaration such as 'https://' at the beginning", "Error": error}, status_code=error.code)
     except:
-        raise CustomException(detail={"Problem": "There was a problem trying to reach the provided url. Make sure it is valid and reachable."}, status_code=status.HTTP_400_BAD_REQUEST)
+        raise CustomException(detail={"Problem": "There was a problem trying to reach the provided url. Make sure it is valid and reachable. Make sure it contains an http declaration such as 'https://' at the beginning"}, status_code=status.HTTP_400_BAD_REQUEST)
 
 
     # load html content
@@ -36,17 +39,40 @@ def analyze_page(url):
 
     headings = [h1_count, h2_count, h3_count, h4_count, h5_count, h6_count]
 
+    link_data = find_link_data(url, page_soup)
+
     analysis = {
         'html_version': html_version,
         'title': page_title,
         'headings': headings,
-        'internal_links': -1,
-        'external_links': -1,
+        'internal_links': link_data['internal_links'],
+        'external_links': link_data['external_links'],
         'inaccessible_links': -1,
         'has_loginform': False,
     }
 
     return analysis
+
+def find_link_data(url, page_soup):
+    from urllib.parse import urlparse
+    base_url = urlparse(url).netloc
+
+    internal_links = 0
+    external_links = 0
+    inaccessible_links = 0
+
+    # iterates over every link on the page
+    for link in page_soup.find_all('a', href=True):
+        link_base_url = urlparse(link['href']).netloc
+
+        if link_base_url == '' or link_base_url == base_url:
+            internal_links = internal_links + 1
+        else:
+            external_links = external_links + 1
+
+    return {'internal_links': internal_links, 'external_links': external_links}
+
+
 
 
 def find_html_version(page_html):

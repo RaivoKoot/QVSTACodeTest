@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 # Create your models here.
 class WebPage(models.Model):
+    url = models.URLField()
     html_version = models.CharField(max_length=20)
     page_title = models.CharField(max_length=100)
     internal_links = models.IntegerField()
@@ -29,4 +30,8 @@ class Heading(models.Model):
         choices=HEADING_TYPE_CHOICES
     )
     count = models.IntegerField()
-    webpage = models.ForeignKey(WebPage, on_delete=models.CASCADE)
+    webpage = models.ForeignKey(
+        WebPage,
+        related_name='headings_set',
+        on_delete=models.CASCADE
+    )

@@ -32,8 +32,10 @@ class WebPageQuerySet(QuerySet):
         from ..models import WebPage, Heading
         from .webscraping import analyze_page
 
+        # scrapes the url and gets its data
         analysis_data = analyze_page(url)
 
+        # creates a new database entry for the url from the newly scraped data
         analysis = WebPage()
         analysis.url = url
         analysis.html_version = analysis_data['html_version']
@@ -45,6 +47,7 @@ class WebPageQuerySet(QuerySet):
         analysis.has_loginform = analysis_data['has_loginform']
         analysis.save()
 
+        # creates new database entries for the associated headings
         HEADING_TAGS = ['H1', 'H2', 'H3', 'H4','H5','H6']
 
         for heading_count, tag in zip(analysis_data['headings'], HEADING_TAGS):

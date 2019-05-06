@@ -16,7 +16,7 @@ class WebPageList(generics.ListAPIView):
         if url is not None:
             # reverse ordering so that the newest is the first
             # and then only take the first object
-            queryset = queryset.filter(url=url).order_by('-pk')[:1]
+            queryset = queryset.webscrape_or_get(url)
         else:
             raise ValidationError('The query parameter "url" was not passed.')
 

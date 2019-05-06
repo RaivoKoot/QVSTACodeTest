@@ -1,5 +1,6 @@
 from django.db import models
 from datetime import datetime, timedelta
+from .business_logic.custom_querysets import WebPageQuerySet
 
 # Create your models here.
 class WebPage(models.Model):
@@ -14,6 +15,9 @@ class WebPage(models.Model):
     # the date on which this database row needs to be deleted:
     # 24 hours after creation
     delete_on = models.DateTimeField(default=datetime.now()+timedelta(days=1))
+
+    # use custom queryset from business_logic/custom_querysets.py
+    objects = WebPageQuerySet.as_manager()
 
 class Heading(models.Model):
     HEADING_TYPE_CHOICES = (

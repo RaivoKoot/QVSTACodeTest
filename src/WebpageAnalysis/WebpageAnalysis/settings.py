@@ -39,6 +39,11 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'AnalysisApplication',
+    'django_crontab',
+]
+
+CRONJOBS = [
+    ('* * * * *', 'AnalysisApplication.cron.clear_outdated_entries')
 ]
 
 MIDDLEWARE = [

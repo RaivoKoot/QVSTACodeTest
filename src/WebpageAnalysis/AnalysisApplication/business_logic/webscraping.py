@@ -7,35 +7,27 @@ import re
 from ..exceptions import CustomException, raise_generic_url_exception, raise_specific_urllib_exception
 from rest_framework import status
 
+# analyzes a web page and returns information about its content
 def analyze_page(url):
 
     uClient = connect_to_page(url)
-
 
     # load html content
     page_html = uClient.read()
     uClient.close()
 
-    html_version = find_html_version(page_html)
-
-    # get html content as soup
+    # Get page html content in correct webscrape format
     page_soup = soup(page_html, "html.parser")
 
     try:
-        page_title = page_soup.title.string
+        # extract info from page
+        html_version = find_html_version(page_html)
+        page_title = get_page_title(page_soup)
+        headings = get_heading_counts(page_soup)
+        has_loginform = contains_loginform(page_soup)
+        link_data = find_link_data(url, page_soup)
     except:
         raise_generic_url_exception()
-
-    h1_count = len(page_soup.find_all('h1'))
-    h2_count = len(page_soup.find_all('h2'))
-    h3_count = len(page_soup.find_all('h3'))
-    h4_count = len(page_soup.find_all('h4'))
-    h5_count = len(page_soup.find_all('h5'))
-    h6_count = len(page_soup.find_all('h6'))
-
-    headings = [h1_count, h2_count, h3_count, h4_count, h5_count, h6_count]
-
-    link_data = find_link_data(url, page_soup)
 
     analysis = {
         'html_version': html_version,
@@ -44,7 +36,7 @@ def analyze_page(url):
         'internal_links': link_data['internal_links'],
         'external_links': link_data['external_links'],
         'inaccessible_links': link_data['inaccessible_links'],
-        'has_loginform': False,
+        'has_loginform': has_loginform,
     }
 
     return analysis
@@ -58,6 +50,23 @@ def connect_to_page(url):
         raise_specific_urllib_exception(error)
     except:
         raise_generic_url_exception()
+
+def get_page_title(page_soup):
+    return page_soup.title.string
+
+def contains_loginform(page_soup):
+    return len(page_soup.find_all('input', {'type':'password'})) > 0
+
+def get_heading_counts(page_soup):
+    h1_count = len(page_soup.find_all('h1'))
+    h2_count = len(page_soup.find_all('h2'))
+    h3_count = len(page_soup.find_all('h3'))
+    h4_count = len(page_soup.find_all('h4'))
+    h5_count = len(page_soup.find_all('h5'))
+    h6_count = len(page_soup.find_all('h6'))
+
+    headings = [h1_count, h2_count, h3_count, h4_count, h5_count, h6_count]
+    return headings
 
 def find_link_data(url, page_soup):
     from urllib.parse import urlparse
@@ -76,7 +85,11 @@ def find_link_data(url, page_soup):
         link_url = link['href']
         link_base_url = urlparse(link_url).netloc
 
-        if link_base_url == '' or link_base_url == base_url:
+        # dont count scroll links as links
+        if link_url.startswith('#'):
+            continue
+        # relative links will be ''
+        elif link_base_url == '' or link_base_url == base_url:
             internal_links += 1
         else:
             external_links += 1
@@ -85,42 +98,33 @@ def find_link_data(url, page_soup):
         if link_base_url == '':
             link_url = 'https://' + base_url + link_url
 
-        '''
-        elif link_base_url.startswith('//'):
-            link_url = 'https://www.' + base_url
-            print('TEST TEST')
-            print(link_base_url)
-            print(base_url)
-            print(link_url)
-        '''
-
-        try:
-            #ping site to check for accessibility
-            response = site_pinger.request(link_url, 'HEAD')
-            print('1')
-
-            # if status code is a 400, then deem link inaccessible
-            if int(response[0]['status']) >= 400:
-                inaccessible_links += 1
-                print('inaccessible')
-                print(link_url)
-
-        # Deem link inaccessible if httplib2 throws error
-        # However, this can be due to incorrect link scraping by this method
-        except:
+        if not is_site_accessible(link_url, site_pinger):
             inaccessible_links += 1
-            print('inaccessible')
-            print(link_url)
 
     return {
         'internal_links': internal_links,
         'external_links': external_links,
         'inaccessible_links': inaccessible_links}
 
+# pings the given url and checks the http response code.
+# Returns True if it is reachable and False otherwise
+def is_site_accessible(url, site_pinger):
+    try:
+        #ping site to check for accessibility
+        response = site_pinger.request(url, 'HEAD')
 
+        # if status code is a 400, then deem link inaccessible
+        if int(response[0]['status']) >= 400:
+            return False
 
+        return True
 
+    # Deem link inaccessible if httplib2 throws error
+    # However, this can be due to incorrect link scraping
+    except:
+        return False
 
+# returns the name of the HTML version used
 def find_html_version(page_html):
     # turns the html from byte-format into a string object
     page_html_string = page_html.lower().decode('utf-8')

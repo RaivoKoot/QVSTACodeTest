@@ -3,7 +3,7 @@ from AnalysisApplication.models import WebPage, Heading
 from AnalysisApplication.serializers import WebPageSerializer, HeadingSerializer
 from rest_framework import generics
 from rest_framework.exceptions import ValidationError
-from .exceptions import CustomException
+from AnalysisApplication.exceptions import *
 from rest_framework import status
 
 # Create your views here.

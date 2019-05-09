@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django_crontab',
 ]
 
+# Defines a regular job that runs after every minute
 CRONJOBS = [
     ('* * * * *', 'AnalysisApplication.cron.clear_outdated_entries')
 ]

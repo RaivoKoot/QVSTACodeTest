@@ -20,6 +20,6 @@ class WebPageList(generics.ListAPIView):
             # and then only take the first object
             queryset = queryset.webscrape_or_get(url)
         else:
-            raise CustomException(detail={"Problem": "The request expected the query parameter url but did not receive it. Correct your request by adding '?url=www.someurl.com' to the end of you request URI or adding the parameter 'url' to your request"}, status_code=status.HTTP_417_EXPECTATION_FAILED)
+            raise_url_not_passed_exception()
 
         return queryset

@@ -4,19 +4,12 @@ from bs4 import BeautifulSoup as soup
 from bs4 import Doctype
 import re
 
-from ..exceptions import CustomException
+from ..exceptions import CustomException, raise_generic_url_exception, raise_specific_urllib_exception
 from rest_framework import status
 
 def analyze_page(url):
 
-    try:
-        # this line can cause 404 errors and possibly more if the url is
-        # bad or something else with the page is wrong
-        uClient = uReq(url)
-    except HTTPError as error:
-        raise CustomException(detail={"Problem": "There was a problem trying to reach the provided url. Make sure it is valid and reachable. Make sure it contains an http declaration such as 'https://' at the beginning", "Error": error}, status_code=error.code)
-    except:
-        raise CustomException(detail={"Problem": "There was a problem trying to reach the provided url. Make sure it is valid and reachable. Make sure it contains an http declaration such as 'https://' at the beginning"}, status_code=status.HTTP_400_BAD_REQUEST)
+    uClient = connect_to_page(url)
 
 
     # load html content
@@ -28,7 +21,10 @@ def analyze_page(url):
     # get html content as soup
     page_soup = soup(page_html, "html.parser")
 
-    page_title = page_soup.title.string
+    try:
+        page_title = page_soup.title.string
+    except:
+        raise_generic_url_exception()
 
     h1_count = len(page_soup.find_all('h1'))
     h2_count = len(page_soup.find_all('h2'))
@@ -47,14 +43,28 @@ def analyze_page(url):
         'headings': headings,
         'internal_links': link_data['internal_links'],
         'external_links': link_data['external_links'],
-        'inaccessible_links': -1,
+        'inaccessible_links': link_data['inaccessible_links'],
         'has_loginform': False,
     }
 
     return analysis
 
+def connect_to_page(url):
+    try:
+        # this line can cause 404 errors and possibly more if the url is
+        # bad or something else with the page is wrong
+        return uReq(url)
+    except HTTPError as error:
+        raise_specific_urllib_exception(error)
+    except:
+        raise_generic_url_exception()
+
 def find_link_data(url, page_soup):
     from urllib.parse import urlparse
+    import httplib2
+
+    httplib2.RETRIES = 1
+    site_pinger = httplib2.Http(timeout=5)
     base_url = urlparse(url).netloc
 
     internal_links = 0
@@ -63,14 +73,50 @@ def find_link_data(url, page_soup):
 
     # iterates over every link on the page
     for link in page_soup.find_all('a', href=True):
-        link_base_url = urlparse(link['href']).netloc
+        link_url = link['href']
+        link_base_url = urlparse(link_url).netloc
 
         if link_base_url == '' or link_base_url == base_url:
-            internal_links = internal_links + 1
+            internal_links += 1
         else:
-            external_links = external_links + 1
+            external_links += 1
 
-    return {'internal_links': internal_links, 'external_links': external_links}
+        # add base url if link is relative because ping does not work otherwise
+        if link_base_url == '':
+            link_url = 'https://' + base_url + link_url
+
+        '''
+        elif link_base_url.startswith('//'):
+            link_url = 'https://www.' + base_url
+            print('TEST TEST')
+            print(link_base_url)
+            print(base_url)
+            print(link_url)
+        '''
+
+        try:
+            #ping site to check for accessibility
+            response = site_pinger.request(link_url, 'HEAD')
+            print('1')
+
+            # if status code is a 400, then deem link inaccessible
+            if int(response[0]['status']) >= 400:
+                inaccessible_links += 1
+                print('inaccessible')
+                print(link_url)
+
+        # Deem link inaccessible if httplib2 throws error
+        # However, this can be due to incorrect link scraping by this method
+        except:
+            inaccessible_links += 1
+            print('inaccessible')
+            print(link_url)
+
+    return {
+        'internal_links': internal_links,
+        'external_links': external_links,
+        'inaccessible_links': inaccessible_links}
+
 
 
 
